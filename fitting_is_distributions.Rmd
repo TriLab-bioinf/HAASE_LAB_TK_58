@@ -1,0 +1,98 @@
+---
+title: "Analysis of transposon insertion sites"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(cowplot)
+load("~/Documents/R_SCRIPTS/data/e100.RData")
+```
+
+```{r}
+dir.create("./Plots", showWarnings = FALSE)
+
+Pbat_mut_LE88RE100_3 <- read_delim("./histograms/Pbat_mut_LE88RE100_3_S6.step3.R1.hist", delim = "\t", col_names = TRUE)
+```
+```{r}
+Pbat_mut_LE88RE100_3.counts <- Pbat_mut_LE88RE100_3 %>% group_by(counts) %>% count()
+
+barplot(height = Pbat_mut_LE88RE100_3.counts$n, names.arg = Pbat_mut_LE88RE100_3.counts$counts, col = "red", log = "y")
+```
+```{r}
+library(vcd)
+library(vcdExtra)
+test.hist <- as.data.frame(Pbat_mut_LE88RE100_3.counts)
+test.hist$counts <- as.factor(test.hist$counts)
+colnames(test.hist) <- c('coverage','count')
+
+barplot(height = test.hist$count, names.arg = test.hist$coverage, col = "red", log = "y")
+test = as.numeric(c(Pbat_mut_LE88RE100_3$counts, c(rep(0,36455000))))
+gf1 = goodfit(test, "poisson")
+rootogram(gf1, xlab = "", rect_gp = gpar(fill = "blue"), xlim=c(1,10), ylim=c(0,500))
+```
+```{r}
+fit_p <- fitdist(test, "pois", method = "mle")
+fit_e <- fitdist(test, "exp", method = "mle")
+denscomp(list(fit_p, fit_e), legendtext = plot.legend, xlim=c(0,10))
+cdfcomp(list(fit_p, fit_e), legendtext = plot.legend)
+qqcomp(list(fit_p, fit_e), legendtext = plot.legend)
+ppcomp(list(fit_p, fit_e), legendtext = plot.legend)
+```
+
+IS annotation quantifications
+
+```{r}
+
+is_annot <- read_delim("./test_distribution/IS_annotation_counts.txt", delim = "\t")
+is_annot$Replicate <- as.factor(is_annot$Replicate)
+print(is_annot)
+
+p.annot <- ggplot(data = is_annot, aes(x=Annotation, y=Event_counts, fill=Group)) + geom_dotplot(binaxis='y', stackdir='center', position=position_dodge(1)) + labs(title="Total number of reads per genomic region", x="Genomic region", y="Event counts") + theme_classic()
+
+
+# Add median
+# dot plot with median points
+#p.annot <- p.annot + stat_summary(fun.data=mean_sdl, fun.args = list(mult=1), 
+#                 geom="pointrange", color="red")
+ggsave2(filename = "./Plots/read_counts_per_region.pdf", plot = p.annot)
+print(p.annot)
+```
+
+Normalized counts
+```{r}
+is_annot_filt <- filter(is_annot, Annotation %in% c('gene','intergenic')) %>%
+                  mutate(Sample=paste(Group,Replicate,sep = '_'))
+agg_table <- is_annot_filt %>% 
+              dplyr::group_by(Sample) %>% 
+              dplyr::summarise(Total_counts=sum(Event_counts))
+print(agg_table)
+
+is_annot_norm <- is_annot %>% mutate(Sample=paste(Group,Replicate,sep = '_'))
+is_annot_norm <- inner_join(x = is_annot_norm, y = agg_table, "Sample")
+is_annot_norm<- is_annot_norm %>% mutate(Norm_event_counts=(Event_counts/Total_counts)*100000)
+
+p.annot.norm <- ggplot(data = is_annot_norm, aes(x=Annotation, y=Norm_event_counts, fill=Group)) + geom_dotplot(binaxis='y', stackdir='center', position=position_dodge(1)) + labs(title="Total number of normalized event counts per genomic region", x="Genomic region", y="Normalized event counts") + theme_classic()
+
+ggsave2(filename = "./Plots/norm_read_counts_per_region.pdf", plot = p.annot.norm)
+print(p.annot.norm) 
+
+```
+
+Site counts:Event_counts ratios
+```{r}
+is_annot_norm <- is_annot_norm %>% mutate(Events_site_ratio=Event_counts / Site_counts)
+
+p.event_site_ratio <- ggplot(data = is_annot_norm, aes(x=Annotation, y=Events_site_ratio, fill=Group)) + geom_dotplot(binaxis='y', stackdir='center', position=position_dodge(0.8), dotsize = 0.5) + labs(title="IS event:site ratio per genomic region", x="Genomic region", y="IS event:site ratio") + theme_classic()
+
+ggsave2(filename = "./Plots/event_site_ratio_per_region.pdf", plot = p.event_site_ratio)
+p.event_site_ratio 
+
+p.site_vs_event <- ggplot(data = is_annot_norm, aes(x=Event_counts, y=Site_counts, col=Group, shape=Annotation)) + geom_point() + labs(title="Total IS events per site per genomic region", x="IS event counts", y="IS site counts") + theme_classic()
+
+ggsave2(filename = "./Plots/IS_events_vs_site_counts.pdf", plot = p.site_vs_event)
+p.site_vs_event
+```
+
+
+
