@@ -49,3 +49,6 @@ tmp.mapped_40.read_ids
 tmp.mapped_below_40.read_ids
 tmp.out
 trimmed.tmp
+Plots/
+depth/
+igv_screenshots/

@@ -18,7 +18,7 @@ while(<FHI>){
         print "$_\n";
     }
     my @x = split /\t/; #print "$x[0] $x[1] $x[2] ; cov=$x[3] ; strand=$x[5] ; STRAND=$STRAND\n";
-    if ($x[5] eq $STRAND ){
+    if ($x[5] eq $STRAND || $STRAND eq 'any'){
         print "$_\n" if $x[3] >= $MINCOV && $x[3] <= $MAXCOV;
     }
 }
