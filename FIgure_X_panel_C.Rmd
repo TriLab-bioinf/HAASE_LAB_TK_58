@@ -1,0 +1,123 @@
+---
+title: "TK_58: Figure X panel C: mean percent of peaks per chromosome"
+author: "Hernan Lorenzi"
+affiliation: "The TriLab Bioinformatics Group, LBG-LCMB-LBC, NIDDK, NIH"
+date: "8/24/2023"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+    theme:
+      bootswatch: flatly
+---
+
+```{=html}
+<style type="text/css">
+
+h1.title {
+  font-size: 38px;
+  text-align: center;
+}
+h4.author {
+  font-size: 24px;
+  text-align: center;
+}
+h4.affiliation {
+  font-size: 24px;
+  text-align: center;
+}
+h4.date {
+  font-size: 24px;
+  text-align: center;
+}
+</style>
+```
+**PI:** Astrid Haase\
+**Point of Contact:** Parthena Konstantinidou\
+**Contact email:** parthena.konstantinidou@nih.gov\
+
+**Summary:** Project summary.
+
+### R code
+
+```{r include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning=FALSE, error=FALSE)
+```
+
+### Load libraries
+
+```{r}
+#library(GenomicRanges)
+#library(ballgown)
+library(tidyverse)
+library(cowplot)
+```
+
+### Load bedGraph data
+
+```{r}
+bedgraph_files <- dir(path = "./histograms/", pattern = "*.bedGraph")
+is.bedgraph <- bedgraph_files %>% gsub(pattern = "_S.*.step3.R1.hist.bedGraph", replacement = "") %>% 
+                   gsub(pattern = "Pbat_LERE", replacement = "Pbat_WT") %>%
+                   gsub(pattern = "Pbat_mut_LE88RE100", replacement = "Pbat_Mut")
+
+is.list <- list()
+idx <- 1
+for (file in bedgraph_files){
+  flag <- is.bedgraph[idx] %>% gsub(pattern = "_.$", replacement = "")
+  is.list[[is.bedgraph[idx]]] <- read_delim(file = paste0("./histograms/",file), delim = "\t", col_names = c("Chr", "End5","End3","Norm_freq"), col_types = c("ciid"))
+  is.list[[is.bedgraph[idx]]]$Genotype <- flag
+  is.list[[is.bedgraph[idx]]] <- is.list[[is.bedgraph[idx]]][grep("_|chrM",is.list[[is.bedgraph[idx]]]$Chr, invert = T),]
+  idx <- idx + 1
+}
+```
+
+### Summarize bedGraph and concatenate into a single object
+
+```{r}
+is.counts.list <- lapply(is.list, function(x){
+      x %>% group_by(Chr) %>% 
+    summarize( Counts = n() ) %>% 
+    mutate( Count_total = sum(Counts)) %>% 
+    mutate( Perc_peaks = Counts * 100 /Count_total) %>% 
+    mutate( Group = x$Genotype[1])
+    }
+)
+
+# append all tibbles into a single tibble
+all.tbl <- tibble(Chr = as.character(), Counts = as.numeric(), Count_total = as.numeric(), Perc_peaks = as.double(), Group = as.character())
+for (tbl in is.counts.list){
+    all.tbl <- rbind(all.tbl, tbl)
+}
+
+# Estimate mean counts per chromosome per Group
+all.tbl.stat <- all.tbl %>% group_by(Group,Chr) %>% 
+            summarize( Mean_perc_peaks = mean(Perc_peaks)) %>%
+  mutate(Chr_name = gsub("chr", "", x = as.character(Chr)))
+
+
+all.tbl.stat$Chr_name <- factor(all.tbl.stat$Chr_name, levels = c(as.character(1:22),"X") )
+
+## Plot heatmap
+genTile <- ggplot() + 
+  geom_tile(data = all.tbl.stat, aes(y = Group, x = Chr_name, fill=Mean_perc_peaks),
+            colour = "white", size = 1) +
+  scale_fill_distiller(palette = "PuBu", direction = 1) +
+  coord_fixed() + xlab("") + ylab("") +
+  theme(axis.ticks = element_blank(), 
+        panel.grid.minor.x = element_blank(),panel.grid.minor.y = element_blank(),
+        panel.grid.major.x = element_blank(),panel.grid.major.y = element_blank(),
+        axis.text.x = element_text(angle = 0, hjust = 1, vjust = 0.5)) +
+  scale_x_discrete(position = "top") 
+
+print(genTile)
+ggsave2(filename = "figX_panel_C_sorted_by_chr.pdf", plot = genTile, path = "./Plots")
+```
+
+
+### R session information
+
+```{r}
+sessionInfo()
+```
+
