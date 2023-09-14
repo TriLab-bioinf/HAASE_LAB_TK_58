@@ -1,3 +1,6 @@
+.Rprofile
+062322_Computational_Methods.Rmd
+renv/
 .DS_Store
 .RData
 .Rhistory
